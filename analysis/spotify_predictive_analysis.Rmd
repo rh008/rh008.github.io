@@ -1,0 +1,252 @@
+---
+title: "Spotify Predictive Analysis"
+author: "Sujata Biradar, Aliya Alimujiang, Rui Huang"
+date: "`r Sys.Date()`"
+output:
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      message = FALSE,
+                      warning = FALSE,
+                      ggplot2::theme_set(ggplot2::theme_bw()))
+```
+
+
+# Abstract
+
+In this analysis, we use the findings from our initial explorations done in the spotify_analysis.Rmd file and try to do clustering analysis using K-means method. We try to provide song recommendations to the user based off cluster analysis.
+
+# Analysis
+
+For this analysis, we will use the tidyverse to explore the tracks dataset stored in the "output" folder. The data was retrieved through Spotify API request.
+
+```{r packages}
+library(tidyverse)
+library(lubridate)
+#install.packages("factoextra")
+#install.packages("broom")
+library(factoextra)
+library(broom)
+library(tree)
+```
+
+```{r data}
+tracks <- read_csv("../output/tracks.csv")
+artists <- read_csv("../output/artists.csv")
+
+```
+
+From the correlation plot in our analysis file,it shows track_popularity doesn't have strong correlation with others any numerical variables. But we found few audio features have strong correlation with each other.
+
+To find more interesting and undiscovered pattern in the data, we will use clustering method using the K-means. 
+
+# Data Pre-processing:
+
+Joining tracks and artists:
+```{r}
+tracks <- tracks %>%
+  mutate(duration_s = dmilliseconds(duration_ms)) %>%
+  select(track_id:time_signature, duration_s, artist_id, -duration_ms)
+
+tracks_artists <- tracks %>%
+  inner_join(artists, by = 'artist_id')
+
+# Removing duplicates if any
+tracks_artists <- tracks_artists[!duplicated(tracks_artists$track_id),]
+```
+
+Transforming Variables:
+
+```{r}
+
+tracks_artists <- tracks_artists %>%
+  mutate(artist_genre  = as.factor(tracks_artists$artist_genre),
+         mode = as.factor(mode),
+         key = as.factor(key),
+         duration_min = duration_s/60)
+```
+
+Creating groups for popularity to have effective cluster analysis:
+
+```{r}
+tracks_artists <- tracks_artists %>% 
+  mutate(popularity_group = as.integer(case_when(
+    ((track_popularity > 0) & (track_popularity < 30)) ~ "1",
+    ((track_popularity >= 30) & (track_popularity < 60))~ "2",
+    ((track_popularity >= 60) & (track_popularity < 90)) ~ "3",
+    ((track_popularity >= 90) ~ "4")))
+    )
+table(tracks_artists$popularity_group)
+
+```
+
+```{r}
+hist(tracks_artists$track_popularity)
+```
+
+Based on above histogram we know that we have nearly normal distribution with right skewedness.
+
+Next step, we will do feature scaling. Feature scaling is a method used to standardize the range of independent variables or features of data. In data processing, it is also known as data normalization and is generally performed during the data preprocessing step. Normalization is used when we want to bound our values between two numbers, typically, between [0,1] or [-1,1]. Scaling the numeric variables for cluster analysis so that the influence of variables measured on higher scales is negated. 
+
+```{r}
+# store numeric variable names in a vector
+
+tracks_artists1 <- 
+  tracks_artists%>% 
+  select(c(-track_popularity, -release_year, -time_signature, -artist_popularity, -total_followers, -popularity_group, -mode))
+
+num.vars <- keep(tracks_artists1, ~class(.) == 'numeric') %>% colnames()
+tracks_artists_scaled <- scale(tracks_artists1[num.vars])
+summary(tracks_artists_scaled)
+```
+
+# Model Building
+
+## Clustering
+
+The variables used for cluster analysis are : Danceability, Energy, Loudness, Speechiness, Acousticness, Instrumentalness, Liveness, Valence, Tempo, and Duration_min.
+
+Determining the optimal number of clusters:
+
+We will try to find optimum number of cluster, in this case we will use Elbow Method.
+
+```{r}
+wss <- function(data, maxCluster = 8) {
+  SSw <- (nrow(data) - 1) * sum(apply(data, 2, var))
+  SSw <- vector()
+  for (i in 2:maxCluster) {
+    SSw[i] <- sum(kmeans(data, centers = i)$withinss)
+  }
+  plot(1:maxCluster, SSw, type = "o", xlab = "Number of Clusters", ylab = "Within groups sum of squares", pch=19)
+}
+
+wss(tracks_artists_scaled)
+```
+
+We found 5 clusters is good enough since there isn't significant decline in total within-cluster sum of squares on higher number of clusters.
+
+K-means clustering:
+
+Here we implement optimal K from our process before, we decided using K = 5
+
+```{r}
+tracks_artists_kmeans <- kmeans(tracks_artists_scaled, centers = 5)
+tracks_artists_kmeans$centers
+tracks_artists$cluster <- tracks_artists_kmeans$cluster
+tracks_artists_kmeans
+tracks_artists_kmeans$size
+```
+
+Goodness of fit:
+
+Between Sum of Squares betweenss : signifies the ‘length’ from each centroid from each cluster to the global sample mean.
+
+```{r}
+
+bss.totss <- ((tracks_artists_kmeans$betweenss)/(tracks_artists_kmeans$totss))*100
+
+cat('\n\n# Value for BSS / totss ratio, is `', bss.totss, '`\n\n')
+```
+
+- From the unsupervised learning analysis above, we can summarize that K-means clustering can be done using this data set since we have got a reasonable high value for BSS / totss ratio.
+
+- We can repeat the same exercise multiple times by adjusting with multiple combinations of variables, to get the best fit and optimized model.
+
+## Create and visualize Cluster plot
+
+```{r}
+tracks_artists_cluster <- fviz_cluster(tracks_artists_kmeans, data=tracks_artists_scaled)
+tracks_artists_cluster
+```
+
+An efficient way to see how a cluster is different from its neighbour is to focus on dimensions or columns which vary the most. One way of obtaining the most varying columns is to take the result of PCA. The PCA effectively retains the dimension which vary the most and compresses the dimensions which vary the least.
+
+Since the cluster graph and summary above shows overlapping in cluster 4 and 5. So using PCA to determine the variables which vary the most accorss clusters would be our future scope.
+
+Finding what kind of songs each cluster has in the optimized model:
+
+```{r}
+tracks_artists %>% 
+  group_by(cluster) %>% 
+  summarise_all(mean) %>% 
+  select(cluster, acousticness, danceability, energy, instrumentalness, speechiness, valence, liveness)
+
+```
+
+From the cluster plot and the summary we can distinguish clusters as below.
+
+Characteristics of Clusters:
+
+- Cluster 1: Lowest acousticness, Highest energy
+- Cluster 2: Highest acousticness, High instrumentalness, lowest energy
+- Cluster 3: High acousticness, High danceability 
+- Cluster 4: Highest danceability, High energy, Highest valance
+- Cluster 5: Lowest instrumentalness, High energy, Highest liveness  
+
+## Song Recommendations
+
+We can try to recommend songs based of clusters we have formed. However, PCA can bring a lot of improvement in distinguishing different clusters going forward. 
+
+For example, if user wants to listen to top 10 songs in Cluster 4 released in 2019, we can recommend following list of songs:
+
+```{r}
+tracks_artists %>% 
+  filter(cluster == 4, release_year == 2019) %>% 
+  arrange(desc(track_popularity)) %>%
+top_n(20)
+```
+
+# Regression 
+
+```{r}
+fit <- lm(track_popularity ~ acousticness + danceability + energy + instrumentalness + loudness + liveness + valence + mode + key + speechiness + tempo + duration_ms + time_signature, data=tracks_artists)
+
+summary(fit)
+```
+
+
+All variables found to be significant. However, adjusted r squared is really low indicating that there is variance in the data. Linear model found to be not a great fit to our data.
+
+
+
+# Regression Tree - Track popularity VS Audio features
+
+We are fitting regression tree to the tracks dataset in order to predict track popularity using all audio features.
+
+```{r}
+library(tree)
+tree.audio = tree(track_popularity~. -track_id -track_name -release_year -artist_id -key+as.factor(key), tracks)
+summary(tree.audio)
+```
+
+Notice that the output of summary() indicates that only two of the variables have been used in constructing the tree `instrumentalness`, `Acousticness`. Mean Sum of squared errors of the tree equals to 264.7.
+
+We now plot the tree: 
+
+```{r}
+plot(tree.audio,type="uniform")
+text(tree.audio)
+```
+The variable `instrumentalness` measures whether a track contains no vocals and `Acousticness` is a confidence measure from 0.0 to 1.0 of whether the track is accoustic. The tree indicates that higher value of `instrumentalness` correspond to track popularity of 40.5. Lower value of `instrumentalness` and lower level of 
+`Acousticness` (`Acousticness` < 0.7085) correspond to the track popularity of 51.19. `instrumentalness`<0.01385 and `Acousticness` > 0.7085 correspond to track popularity of 43.50.
+
+
+# Conclusion 
+
+From the clustering analysis we learned that there is overlap between the clusters and we don't have much clear distinction. This makes it difficult to provide better song recommendations to the user.
+
+The improved data set obtained from unsupervised learning (eg.PCA) can be utilized further for supervised learning (classification) or for better data visualization (high dimensional data) with various insights.
+
+
+There were no strong linear correlation in our data, so linear methods did not fit well. From the regression tree we were able to get better results than the linear model. 
+
+
+# References
+
+We used the following resources:
+
+- <https://developer.spotify.com/documentation/web-api/reference/tracks/get-track/>
+- <https://developer.spotify.com/documentation/web-api/reference/tracks/get-audio-features/>
+- <https://developer.spotify.com/documentation/web-api/reference/artists/get-artist/>

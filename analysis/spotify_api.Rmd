@@ -1,0 +1,231 @@
+---
+title: "Spotify Data API Request"
+author: "Rui Huang"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message = FALSE, warning = FALSE, echo = TRUE, eval = FALSE)
+```
+
+# Abstract
+
+This file is dedicated to obtain data through Spotify API requests. We will combine the httr package and the spotifyr package to get data, and the tidyverse package to tidy up data.
+
+
+# API Requests
+
+These requests are made through a combination of the httr package and spotifyr package.
+
+```{r packages}
+library(httr)
+library(spotifyr)
+library(tidyverse)
+library(usethis)
+```
+
+#### Set Up API Key
+```{r get api key}
+clientID <- Sys.getenv('Spotify_clientID')
+secret <- Sys.getenv('Spotify_Secret')
+
+response <- POST(
+  'https://accounts.spotify.com/api/token',
+  accept_json(),
+  authenticate(clientID, secret),
+  body = list(grant_type = 'client_credentials'),
+  encode = 'form',
+  verbose()
+)
+
+mytoken <- content(response)$access_token
+
+HeaderValue <- paste0('Bearer ', mytoken)
+
+```
+
+
+# Spotify Genres
+
+Goal: Get a list of Spotify genres.
+
+Reference: https://developer.spotify.com/console/get-available-genre-seeds/
+
+```{r get genres}
+URI <- paste0('https://api.spotify.com/v1/recommendations/available-genre-seeds')
+response2 <- GET(url = URI, add_headers(Authorization = HeaderValue))
+Genre <- content(response2)
+
+genres <- map_chr(Genre$genres, ~.[[1]])
+
+head(genres, 10)
+```
+
+# Artists by Genre
+
+Goal: Request 50 artists per each genre we generated above through `get_genre_artists()` package.
+
+```{r get artist by genre, results="hide"}
+# Prepare an empty list to store artist data
+artist_by_genre <- list()
+
+# Loop through each genre and return 50 artist
+for (i in seq_along(genres)) {
+  artist_by_genre[[i]] <- get_genre_artists(genres[[i]], authorization = mytoken, limit = 50)
+}
+```
+
+```{r tidy artists}
+# Combine each artists data frames per genre
+artist_df <- bind_rows(artist_by_genre)
+
+# Tidy artist data
+artist_df <- artist_df %>% 
+  select(-genres, -href, -images, -type, -external_urls.spotify, -followers.href, -uri) %>%
+  group_by(id) %>%
+  mutate(genre_num = row_number(genre)) %>%
+  ungroup() %>%
+  pivot_wider(names_from = genre_num, names_prefix = 'genre_', values_from = genre) %>%
+  rename(artist_id = id, artist_name = name) %>%
+  rename(artist_id = aritst_id, artist_popularity = popularity, total_followers = followers.total, artist_genre = genre_1) %>%
+  select(-genre_2:-genre_7)
+ 
+# Take a look
+head(artist_df)
+
+
+# Save artists data to data folder
+#write_csv(artist_df, '../data/artists.csv')
+```
+
+#### Get Artist Top Tracks
+
+Goal: Request top tracks by each artist. On average, we will get approximately 10 
+most famous tracks from an artist.
+
+```{r top tracks by artist}
+# Read artists data
+artists <- read_csv('../data/artists.csv')
+
+# Create an empty list to store track dataframe
+top_track_list <- list()
+
+# Store artist ids in a vector
+artist_ids <- unique(artists$aritst_id)
+
+# Request Top Tracks
+tryCatch(
+  {
+    for (i in seq_along(artist_ids)) {
+      top_track_list[[i]] <- get_artist_top_tracks(id = artist_ids[[i]], market = 'US', authorization = mytoken)
+      Sys.sleep(0.1)
+    }
+  }, 
+  error = function(error_message) {
+    print(new_zero_popularity[i,]$track_id)
+    print(i)
+    message(error_message)
+  }
+)
+
+# Convert the list to a single dataframe
+top_tracks_by_artist <- bind_rows(top_track_list)
+
+# Unnest artist ids and tidy data
+top_tracks_c <- top_tracks_by_artist %>%
+  select(-available_markets, -disc_number, -href, -is_local, -is_playable, -preview_url, -track_number, -type, -uri, -album.images, -album.type, -album.uri, -album.external_urls.spotify, -external_ids.isrc, -external_urls.spotify, -restrictions.reason, -album.href, -album.album_type, -album.artists, -album.total_tracks, -explicit) %>%
+  rename(track_name = name, track_id = id, track_popularity = popularity) %>%
+  unnest(artists) %>%
+  select(-href, -type, -uri, -external_urls.spotify) %>%
+  rename(artist_id = id, artist_name = name) %>%
+  group_by(track_id) %>%
+  mutate(artist_row_num = row_number()) %>%
+  select(-artist_name) %>%
+  pivot_wider(names_from = artist_row_num, names_prefix = 'artist_', values_from = artist_id) %>%
+  ungroup(track_id) %>%
+  inner_join(artists, by = c('artist_1' = 'aritst_id')) %>%
+  select(track_id, track_name, track_popularity, artist_id = artist_1, album_id = album.id, album_name = album.name, album_release_date = album.release_date, album_release_date_precision = album.release_date_precision) %>%
+  mutate(release_year = str_extract(album_release_date, '^\\d{4}')) %>%
+  select(track_id, track_name, track_popularity, artist_id, release_year, album_id, album_name)
+
+top_tracks_c
+
+# write_csv(top_tracks_c, '../Data/top_tracks.csv')
+```
+
+#### Get Audio Features for Top Tracks
+
+Goal: Require audio features for each track we obtained above.
+
+```{r audio features for top tracks}
+# Request Song popularity
+tryCatch(
+  {
+    for (i in 0:373) {
+        if (i == 0) {
+          top_track_audio_features <- get_track_audio_features(ids = top_tracks$track_id[1:100], authorization = mytoken)
+        } else if (1 <= i && i < 373) {
+          top_track_audio_features <- bind_rows(top_track_audio_features, get_track_audio_features(ids = top_tracks$track_id[(i*100+1):(i*100+1+99)], authorization = mytoken))
+          Sys.sleep(0.1)
+        } else {
+          top_track_audio_features <- bind_rows(top_track_audio_features, get_track_audio_features(ids = top_tracks$track_id[(i*100+1):nrow(top_tracks)], authorization = mytoken))
+        }
+      }
+    }, 
+  error = function(error_message) {
+    print(i)
+    message(error_message)
+  }
+)
+
+# Tidy top_track_audio_features
+top_track_audio_features <- top_track_audio_features %>%
+  select(-type, -uri, -track_href, -analysis_url) %>%
+  select(track_id = id, danceability:tempo, duration_ms, time_signature)
+
+#write_csv(top_track_audio_features, '../data/top_track_audio_features.csv')
+
+```
+
+
+# Prepare Final Data Sets
+
+Goal: Combine data sets to prepare final analysis data. We will have 2 data sets
+at the end: tracks.csv and artists.csv.
+
+```{r final data prep}
+# Read datasets
+artists <- read_csv('../data/artists.csv')
+top_track_audio_features <- read_csv('../data/top_track_audio_features.csv')
+top_tracks <- read_csv('../data/top_tracks.csv')
+
+# Prepare artist data set
+artists_c <- top_tracks %>%
+  distinct(artist_id) %>%
+  inner_join(artists, by = 'artist_id')
+#write_csv(artists_c, '../output/artists.csv')
+
+# Prepare track data set
+tracks_c <- top_tracks %>%
+  inner_join(top_track_audio_features, by = 'track_id') %>%
+  select(track_id:track_popularity, release_year, danceability:time_signature, artist_id)
+#write_csv(tracks_c, '../output/tracks.csv')
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

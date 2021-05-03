@@ -1,0 +1,239 @@
+---
+title: "Spotify Analysis"
+author: "Aliya Alimujiang, Rui Huang, Sujata Biradar"
+date: "`r Sys.Date()`"
+output:
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      message = FALSE,
+                      warning = FALSE,
+                      ggplot2::theme_set(ggplot2::theme_bw()))
+```
+
+
+# Abstract
+
+In this analysis, we explore the tracks and artists data, which are both stored in the "output" folder.
+
+# Analysis
+
+For this analysis, we will use the tidyverse to explore the tracks dataset stored in the "output" folder. The data was retrieved through Spotify API request.
+
+```{r packages}
+library(tidyverse)
+library(corrplot)
+library(gridExtra)
+library(grid)
+library(lubridate)
+library(factoextra)
+```
+
+```{r data}
+tracks <- read_csv("../output/tracks.csv")
+artists <- read_csv("../output/artists.csv")
+
+glimpse(tracks)
+glimpse(artists)
+```
+
+
+There are `r nrow(tracks)` track records:
+
+- `track_id`: An unique identifier for each track.
+- `track_name`: Name of each track.
+- `track_popularity`: The popularity of the track. The value ranges from 0 to 100, with 100 being the most popular.
+- `release_year`: The year the track got released.
+- `danceability` to `time_signature`: These are 13 audio features defined by Spotify. Please view "audio_features_dictionary" in the "output" folder.
+- `artist_id`: An unique identifier for each artist of the corresponding track. Tracks can be joined with the artists data using this key.
+
+There are `r nrow(artists)` artists in the artists dataset:
+
+- `artist_id`: An unique identifier for each artist.
+- `artist_name`: Name of each artist.
+- `artist_popularity`: The popularity of each artist. The value ranges from 0 to 100, with 100 being the most popular.
+- `total_followers`: Total followers on Spotify of each artist.
+- `artist_genre`: The genre of each artist.
+
+Since `duration_s` is represented in millisecond. We want to convert it to second.
+```{r}
+tracks <- tracks %>%
+  mutate(duration_s = dmilliseconds(duration_ms)) %>%
+  select(track_id:time_signature, duration_s, artist_id, -duration_ms)
+```
+
+First, let's take a look at the descriptive summary for our data:
+
+```{r suammaries}
+tracks %>% 
+  select(-track_id, -track_name, -release_year, -artist_id) %>%
+  summary()
+
+artists %>%
+  select(-artist_id, -artist_name, -artist_genre) %>%
+  summary()
+```
+
+Based on the summary statistics above, on average, each song lasts for approximately 4 minutes.
+On average, an artist has approximately 1.08m followers in this dataset. Track popularity has an average at 47 and artist
+popularity has an average around around 60. Based on their medians and means, both types of popularity distributions are somewhat normal.
+
+Let's take a look at the distributions of the track popularity and the artist popularity:
+
+```{r popularity distribution}
+tracks %>%
+  ggplot() +
+  geom_histogram(aes(x = track_popularity), fill = 'pink', color = 'grey') +
+  labs(title = 'Track Popularity Histogram', x = 'Track Popularity')
+
+
+artists %>%
+  ggplot() +
+  geom_histogram(aes(x = artist_popularity), fill = 'pink', color = 'grey') +
+  labs(title = 'Artist Popularity Histogram', x = 'Artist Popularity')
+```
+
+Based on the histograms above, both artist and track popularities have somewhat normal distribution.
+
+
+Let's run a correlation plot:
+
+```{r corr plot}
+track_corr <- tracks %>%
+  select(track_popularity,
+         danceability:duration_s) %>%
+  cor()
+
+corrplot(track_corr, method="color", type = "upper", tl.col="black",tl.srt=40, addCoef.col = "gray8", diag = T, number.cex = 0.65)
+```
+
+While most correlations are low, there are some interesting points: 
+
+- There is a high positive correlation between `energy` and `loudness` of a track.
+- There is a strong negative correlation between `energy` and `acousticness` in a track.
+- There is a positive correlation between `danceability` and `valence.`
+- There is no strong correlation between any of the track audio features and the track popularity, which is good.
+
+
+Based on the correlation plot above, we want to take a look at the relationships between variables that are highly correlated:
+```{r jitter plots}
+# Create a function for relationship 
+jitter <- function(x, y, data) {
+  ggplot(data, aes(x, y)) +
+  geom_jitter(size = 0.01, color = 'pink') +
+  geom_smooth(method = 'lm', color = 'grey', size= 1, alpha = 0.5)
+}
+
+# energy vs loudness
+energy_loudness <- jitter(x = tracks$energy, y = tracks$loudness, data = tracks) + labs(x = 'Energy', y = 'Loudness')
+
+# energy vs acousticness
+acousticness_energy <- jitter(x = tracks$energy, y = tracks$acousticness, data = tracks) + labs(x = 'Energy', y = 'Acousticness')
+
+# danceability vs valence
+danceability_valence <- jitter(x = tracks$danceability, y = tracks$valence, data = tracks) + labs(x = 'Danceability', y = 'Valence')
+
+grid.arrange(energy_loudness, acousticness_energy, danceability_valence, nrow = 3)
+```
+
+We want to see top 10 tracks overtime:
+
+```{r}
+tracks_artists <- tracks %>%
+  inner_join(artists, by = 'artist_id')
+
+# Removing duplicates if any
+tracks_artists <- tracks_artists[!duplicated(tracks_artists$track_id),]
+```
+
+
+```{r}
+tracks_artists %>%
+  select(track_name, artist_name, artist_genre, track_popularity)%>%
+  group_by(artist_name)%>%
+  filter(!is.na(track_name))%>%
+  filter(!is.na(artist_name))%>%
+  arrange(desc(track_popularity))%>%
+  head(n = 10)%>%
+  ggplot(mapping = aes(x = artist_name, y = track_name, color = artist_name, fill = artist_genre, size = track_popularity ))+
+  geom_point()+
+  theme_minimal()+
+  labs(x = 'track_name', y = 'artist_name', title = 'Top ten most popular tracks')+
+  theme(plot.title = element_text(hjust=0.5),legend.position ='bottom')
+```
+
+Let's take a look at the key:
+
+```{r key distribution}
+tracks$key <- as.character(tracks$key)
+library(plyr)
+tracks$key <- revalue(tracks$key, c("0" = "C", "1" = "C♯,D♭", "2" = "D", "3" = "D♯,E♭", "4" = "E", "5" =  "F", "6" = "F♯,G♭","7" = "G","8" = "G♯,A♭","9" = "A","10" = "A♯,B♭","11" = "B"))
+
+detach("package:plyr", unload=TRUE) 
+song_keys <- tracks %>%
+  group_by(key) %>%
+  summarise(n_key = n()) %>%
+  arrange(desc(n_key))
+
+library(plyr)
+song_keys$key <- factor(song_keys$key, levels = song_keys$key[order(song_keys$n_key)]) # in order to visualise the keys in descending order
+
+ggplot(song_keys, aes(x = reorder(key,-n_key), y = n_key, fill = reorder(key,-n_key))) +
+  geom_bar(stat = "identity") +
+  labs(title = "Distribution of the Keys of Top Songs", x = "Keys", y = "Count of Keys on the Top 100") +
+  geom_text(aes(label=n_key), position = position_stack(vjust = 0.8)) +
+  theme_bw() +
+  theme(plot.title = element_text(size=15,face = "bold"), axis.title = element_text(size=12)) +
+  theme(legend.position="none")
+```
+
+Based on the plot above, C key is the most common key.
+
+
+Let's take a look at density plots on some audio features: 
+
+```{r density plots}
+# Create a density plot function
+density_plot <- function(x) {
+  ggplot(tracks) +
+    geom_density(aes(x), fill = 'skyblue') +
+    theme_bw() +
+    theme(plot.title = element_text(size = 14, face = "bold"),
+            text = element_text(size = 12)) +
+    theme(legend.title=element_blank())
+}
+
+# Prepare density plots
+loudness_density <- density_plot(tracks$loudness) + labs(x = 'Loudness')
+tempo_density <- density_plot(tracks$tempo) + labs(x = 'Tempo')
+energy_density <- density_plot(tracks$energy) + labs(x = 'Energy')
+acousticness_density <- density_plot(tracks$acousticness) + labs(x = 'Acousticness')
+danceability_density <- density_plot(tracks$danceability) + labs(x = 'Danceability')
+valence_density <- density_plot(tracks$valence) + labs(x = 'Valence')
+speechiness_density <- density_plot(tracks$speechiness) + labs(x = 'Speechiness')
+liveness_density <- density_plot(tracks$liveness) + labs(x = 'Liveness')
+instrumentalness_density <- density_plot(tracks$instrumentalness) + labs(x = 'Instrumentalness')
+duration_s_density <- density_plot(tracks$duration_s) + labs(x = 'Duration (s)')
+
+# Grid plots
+grid.arrange(loudness_density, tempo_density, energy_density, acousticness_density, danceability_density, valence_density, speechiness_density, liveness_density, duration_s_density, instrumentalness_density, nrow = 5)
+```
+Based on the density plots above:  
+- The distribution of loudness of tracks is slightly left-skewed. Loudness is the quality of a sound that is the primary psychological correlate of physical strength (amplitude).
+- Liveness seems to be right-skewed and Acousticness also has severe right-skewness.
+- Danceability and Duration (s) are more normally distributed than others.
+
+
+# Conclusion (Needs to be edited)
+
+After running initial analysis, we found that there are some correlation issues residing in audio features, which means a variable selection method could be used in our prediction analysis later. Both distributions for track popularity and artist popularity are somewhat normal, which is a good thing. 
+
+# References
+
+We used the following resources:
+
+- <https://developer.spotify.com/documentation/web-api/reference/tracks/get-track/>
+- <https://developer.spotify.com/documentation/web-api/reference/tracks/get-audio-features/>
+- <https://developer.spotify.com/documentation/web-api/reference/artists/get-artist/>

@@ -1,0 +1,135 @@
+---
+title: "Glopping"
+author: "David Gerard"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      ggplot2::theme_set(ggplot2::theme_bw()))
+```
+
+# Abstract
+
+This is an example of what a detailed R Markdown file should look like.
+At a minimum, it should have three parts:
+
+1. An abstract describing the analysis run.
+2. The analysis, annotated with comments on why you are running the code
+   you are running.
+3. A conclusion of what you learned in this R Markdown file.
+
+An example abstract could look like this:
+
+We explore the "faithful" dataset from the "datasets" R package. We see
+that eruption length and waiting time are both bimodal. The data suggests
+that this bimodality is partially due to some natural cycle.
+
+# Analysis
+
+For this analysis, we will use the tidyverse to explore the Old Faithful
+dataset that comes with R.
+
+```{r, message=FALSE}
+library(tidyverse)
+data("faithful")
+```
+
+These data contain two variables:
+
+- `eruptions`: The eruption time in minutes, and
+- `waiting`: The waiting time to the next eruption in minutes.
+
+Let's look at the distribution of waiting time:
+
+```{r}
+ggplot(faithful, aes(x = waiting)) +
+  geom_histogram(bins = 30)
+```
+
+On first glance, we seem to see some bimodality, with peaks at around
+55 and 80 minutes. Two hypotheses for this:
+
+1. Waiting time is associated with eruption length, and this causes the
+   bimodality.
+2. Eruption time is cyclical, and this cycle causes the bimodality.
+
+I don't know if the data are presented in the order they were collected,
+so we might not be able to analyse hypothesis 2, but we can check!
+
+First, let's look at the association between eruption time and waiting time:
+```{r}
+ggplot(faithful, aes(x = eruptions, y = waiting)) +
+  geom_point()
+```
+
+It certainly looks like the two clusters are a result of eruption time. 
+So if there was a short eruption time, then the subsequent wait time is 
+shorter!
+
+Eruptions are also extremely bimodal:
+
+```{r}
+ggplot(faithful, aes(x = eruptions)) +
+  geom_histogram(bins = 30)
+```
+
+Let's explore if there is some sort of cycle. There are real 
+statistical methods to do this. But I'll try to stick to simple methods.
+First, I plot each eruption time against the next eruption time.
+```{r}
+dftemp <- tibble(x = faithful$eruptions[1:(nrow(faithful) - 1)], 
+                 y = faithful$eruptions[2:nrow(faithful)])
+ggplot(dftemp, aes(x = x, y = y)) +
+  geom_point() +
+  xlab("Eruption Time") +
+  ylab("Next Eruption Time")
+```
+
+It seems that there are more points in the top left and bottom right
+quadrants than in the bottom left and top right quadrants, indicating 
+a negative associaiton. Let's divide the observations into those
+less than 3 and those greater than 3. This corresponds to "short" and 
+"long" eruptions.
+```{r}
+faithful %>%
+  mutate(length = case_when(eruptions < 3 ~ "short",
+                            eruptions > 3 ~ "long")) ->
+  faithful
+head(faithful)
+```
+
+Let's look at "transition proportions": the probability of going to short
+given long or long given short.
+
+```{r}
+faithful %>%
+  mutate(next_length = c(length[2:n()], NA)) ->
+  faithful
+head(faithful)
+
+table(faithful$length, faithful$next_length) %>%
+  prop.table(margin = 1)
+```
+
+So if an eruption is less than 3 minutes, the next eruption
+has a 93% chance of being greater than 3 minutes. On the other hand
+if an eruption is greater than 3 minutes, the next eruption only a 
+52% chance of being less than 3 minutes.
+
+# Conclusion
+
+We found that eruption time and waiting time are very bimodal. This might
+be partially explained by a cyclical nature of eruptions. For example,
+we found that after a short eruption (<3 min), there is a 93% chance of there
+being a long eruption (>3 min). More sophisticated statistical techniques
+would be needed to more accurately explore this cyclical association.
+
+# References
+
+We used the following resources:
+
+- Reference 1
+- Reference 2
+- Reference 3

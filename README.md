@@ -1,37 +1,67 @@
-## Welcome to GitHub Pages
+# Spotify Data Analysis
 
-You can use the [editor on GitHub](https://github.com/rh008/rh008.github.io/edit/main/README.md) to maintain and preview the content for your website in Markdown files.
+Aliya Alimujiang, Sujata Biradar and Rui Huang
 
-Whenever you commit to this repository, GitHub Pages will run [Jekyll](https://jekyllrb.com/) to rebuild the pages in your site, from the content in your Markdown files.
+# Summary
 
-### Markdown
+The purpose of our project is to explore the patterns of audio features of tracks 
+and artists data that we retrieved through Spotify's API requests. We explore the 
+relationship between any two audio features. We found energy to be positively
+correlated with loudness, danceability to be positively correlated with valence. We
+also discovered the artist popularity in between genres. We found that Hip-Hop tends
+to have higher artist popularity comparing to the rest of the genre.
 
-Markdown is a lightweight and easy-to-use syntax for styling your writing. It includes conventions for
+# Shiny App
 
-```markdown
-Syntax highlighted code block
+The shiny app in the "app" folder presents our findings on tracks audio features, analyses on
+artists popularity and artist genres, as well as our regression analyses on track popularity. 
+There are 5 tabs:
 
-# Header 1
-## Header 2
-### Header 3
+1. Home: The front page of our presentation.
+2. Sample Data: Contains our tracks data and artists data.
+3. Data Dictionary: A dictionary for track audio features.
+4. Tracks Analyses: Our analyses findings on tracks.
+5. Artists Analyses: Our analyses findings on artists.
+6. Regression Analysis: Our regression models on track popularity.
+7. Favorite Words: Word clouds for popular words in track names.
 
-- Bulleted
-- List
+# Analyses
 
-1. Numbered
-2. List
+This Shiny App was motivated by the analyses run in the "analysis" folder.
+The analysis folder contains the following files:
 
-**Bold** and _Italic_ and `Code` text
+- spotify_analysis.Rmd. This file summarizes the exploratory data analysis on our data.
+- spotify_predictive_analysis.Rmd. This file contains our prediction analysis findings.
 
-[Link](url) and ![Image](src)
-```
+# Running the app
+To download and run the Shiny App, do the following:
 
-For more details see [GitHub Flavored Markdown](https://guides.github.com/features/mastering-markdown/).
+1. Download tracks.csv and aritsts.csv data files from the "data" folder.
+2. Make sure you install the following packages:
+	- shiny
+	- shinythemes
+	- ggplot2
+	- tidyverse
+	- broom
+	- RColorBrewer
+	- wordcloud
+	- tidytext
+	- ggthemes
+	- corrplot
+	- car
+	- shinydashboard
+	- fmsb
+	- radarchart
+	- ECharts2Shiny
+3. When running the app, click "Run App" button instead of using "Ctrl + Return", otherwise
+the image in the home page won't render. This is a bug we found.
 
-### Jekyll Themes
+# References
 
-Your Pages site will use the layout and styles from the Jekyll theme you have selected in your [repository settings](https://github.com/rh008/rh008.github.io/settings/pages). The name of this theme is saved in the Jekyll `_config.yml` configuration file.
+We used the following resources when building our app:
 
-### Support or Contact
-
-Having trouble with Pages? Check out our [documentation](https://docs.github.com/categories/github-pages-basics/) or [contact support](https://support.github.com/contact) and we’ll help you sort it out.
+- https://www.rdocumentation.org/packages/ECharts2Shiny/versions/0.2.13/topics/renderRadarChart
+- https://shiny.rstudio.com/articles/images.html
+- https://stackoverflow.com/questions/50182910/load-shinydashboard-image
+- https://shiny.rstudio.com/tutorial/written-tutorial/lesson2/
+- https://stackoverflow.com/questions/21996887/embedding-image-in-shiny-app
