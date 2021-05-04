@@ -1,0 +1,13 @@
+name: spotifyEDA
+title: spotifyEDA
+username:
+account: rh008
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 4073563
+bundleId: 4553167
+url: https://rh008.shinyapps.io/spotifyEDA/
+when: 1620089595.04999
+lastSyncTime: 1620089595.05001
+asMultiple: FALSE
+asStatic: FALSE

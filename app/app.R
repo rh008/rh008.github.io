@@ -1,4 +1,9 @@
 # load packages
+#if(!require("devtools"))
+#  install.packages("devtools")
+#devtools::
+#install_github("rstudio/rsconnect")
+library(rsconnect)
 library(shiny)
 library(shinythemes)
 library(ggplot2)
@@ -9,16 +14,17 @@ library(wordcloud)
 library(tidytext)
 library(ggthemes)
 library(corrplot)
-library(car)
+#library(car)
 library(shinydashboard)
 library(fmsb)
 library(radarchart)
 library(ECharts2Shiny)
 
+
 # prepare data
-tracks <- read_csv('../output/tracks.csv')
-artists <- read_csv('../output/artists.csv')
-dict <- read_csv('../data/audio_features_dictionary.csv')
+tracks <- read_csv('/Users/ruihuang/Documents/github/spotify_eda_project/rh008.github.io/output/tracks.csv')
+artists <- read_csv('/Users/ruihuang/Documents/github/spotify_eda_project/rh008.github.io/output/artists.csv')
+dict <- read_csv('/Users/ruihuang/Documents/github/spotify_eda_project/rh008.github.io/data/audio_features_dictionary.csv')
 
 # Convert keys
 library(plyr)
@@ -111,7 +117,7 @@ ui <- dashboardPage(
       menuItem(text = 'Data Dictionary', tabName = 'dictionary'),
       menuItem(text = 'Track Analyses', tabName = 'tracks_ana'),
       menuItem(text = 'Artists Analyses', tabName = 'artist_ana'),
-      menuItem(text = 'Linear Regression', tabName = 'predictions'),
+      #menuItem(text = 'Linear Regression', tabName = 'predictions'),
       menuItem(text = 'Favorite Words', tabName = 'favorite_words')
     )
   ),
@@ -226,35 +232,6 @@ ui <- dashboardPage(
             loadEChartsLibrary(),
             tags$div(id="test", style="width:100%;height:600px;"),
             deliverChart(div_id = "test")
-          )
-        )
-      ),
-      tabItem(
-        tabName = 'predictions',
-        fluidRow(
-          box(
-            width = 12,
-            title = 'Track Popularity vs Audio Features',
-            verbatimTextOutput('audio_feature_lm_summary')
-          )
-        ),
-        fluidRow(
-          box(
-            width = 12,
-            plotOutput('audio_feature_lm_plots')
-          )
-        ),
-        fluidRow(
-          box(
-            width = 12,
-            title = 'Track Popularity vs Artist Popularity',
-            verbatimTextOutput('artist_lm_summary')
-          )
-        ),
-        fluidRow(
-          box(
-            width = 12,
-            plotOutput('artist_lm_plots')
           )
         )
       ),
