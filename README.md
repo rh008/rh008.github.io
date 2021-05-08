@@ -1,6 +1,6 @@
 # Spotify Data Analysis
 
-Aliya Alimujiang, Sujata Biradar and Rui Huang
+Rui Huang
 
 # Summary
 
