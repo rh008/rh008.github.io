@@ -58,7 +58,7 @@ the image in the home page won't render. This is a bug I found.
 
 # References
 
-We used the following resources when building our app:
+I used the following resources when building our app:
 
 - https://www.rdocumentation.org/packages/ECharts2Shiny/versions/0.2.13/topics/renderRadarChart
 - https://shiny.rstudio.com/articles/images.html
