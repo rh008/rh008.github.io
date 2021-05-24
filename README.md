@@ -4,11 +4,11 @@ Rui Huang
 
 # Summary
 
-The purpose of our project is to explore the patterns of audio features of tracks 
-and artists data that we retrieved through Spotify's API requests. We explore the 
-relationship between any two audio features. We found energy to be positively
-correlated with loudness, danceability to be positively correlated with valence. We
-also discovered the artist popularity in between genres. We found that Hip-Hop tends
+The purpose of this project is to explore the patterns of audio features of tracks 
+and artists data that I retrieved through Spotify's API requests. I explore the 
+relationship between any two audio features. I found energy to be positively
+correlated with loudness, danceability to be positively correlated with valence. I
+also discovered the artist popularity in between genres. I found that Hip-Hop tends
 to have higher artist popularity comparing to the rest of the genre.
 
 # Shiny App
@@ -54,7 +54,7 @@ To download and run the Shiny App, do the following:
 	- radarchart
 	- ECharts2Shiny
 3. When running the app, click "Run App" button instead of using "Ctrl + Return", otherwise
-the image in the home page won't render. This is a bug we found.
+the image in the home page won't render. This is a bug I found.
 
 # References
 
